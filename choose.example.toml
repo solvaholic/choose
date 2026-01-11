@@ -1,0 +1,7 @@
+# Example configuration for choose
+# Copy to ~/.config/choose/choose.toml and edit as needed.
+
+max_items = 8          # Maximum number of items to compare
+ai_endpoint = ""       # OpenAI-compatible URL (e.g., http://localhost:11434/v1/chat/completions for Ollama)
+ai_model = ""          # Model name; leave empty to disable AI
+ai_api_key = ""        # API key for the endpoint; leave empty if not required
