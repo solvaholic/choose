@@ -165,20 +165,38 @@ def ai_suggest_keep(items, config, verbose=False):
     if not content:
         return None
 
-    try:
-        parsed = json.loads(content)
-        if isinstance(parsed, list):
-            return [item for item in parsed if item in items]
-        if isinstance(parsed, dict) and isinstance(parsed.get("keep"), list):
-            return [item for item in parsed["keep"] if item in items]
-    except Exception as exc:
-        if verbose:
-            print(f"[verbose] AI response parse failed: {exc}")
-        return None
+    # Try direct JSON parse first, then extract from markdown fences or prose
+    for candidate in _extract_json_candidates(content):
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, list):
+                return [item for item in parsed if item in items]
+            if isinstance(parsed, dict) and isinstance(parsed.get("keep"), list):
+                return [item for item in parsed["keep"] if item in items]
+        except (json.JSONDecodeError, TypeError):
+            continue
 
     if verbose:
-        print(f"[verbose] AI response had unexpected structure: {content!r}")
+        print(f"[verbose] AI response parse failed: no valid JSON found in response")
     return None
+
+
+def _extract_json_candidates(text):
+    """Yield JSON candidate strings from text that may contain markdown fences or prose."""
+    import re
+
+    yield text
+
+    # Try content inside markdown code fences
+    for match in re.finditer(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL):
+        yield match.group(1).strip()
+
+    # Try the first { ... } or [ ... ] block
+    for open_ch, close_ch in [("{", "}"), ("[", "]")]:
+        start = text.find(open_ch)
+        end = text.rfind(close_ch)
+        if start != -1 and end > start:
+            yield text[start:end + 1]
 
 
 def ensure_interactive_input():
