@@ -4,10 +4,13 @@
 #
 # Usage: choose.py
 
+import argparse
 import json
 import os
 import sys
 import urllib.request
+
+__version__ = "0.1.0"
 
 try:
     import tomllib
@@ -269,8 +272,25 @@ def print_ranked_options(ranked_options):
     for option, count in sorted(ranked_options.items(), key=lambda x: (-x[1], x[0])):
         print("%s: %d" % (option, count))
 
+def parse_args(argv=None):
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        prog="choose",
+        description="Choose among N options via pairwise comparison.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument(
+        "--config", metavar="PATH", default=None,
+        help="path to config file (default: ~/.config/choose/choose.toml)",
+    )
+    return parser.parse_args(argv)
+
+
 def main():
-    config = load_config()
+    args = parse_args()
+    config = load_config(config_path=args.config)
     # TODO: Wire config into comparison and output flows.
     options = read_items(config)
     preferences = eval_options(options)
