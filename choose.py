@@ -106,7 +106,7 @@ def interactive_prune(items, max_items):
     return current[:max_items]
 
 
-def ai_suggest_keep(items, config):
+def ai_suggest_keep(items, config, verbose=False):
     """Use OpenAI-compatible API to suggest which items to keep; expect JSON list or {"keep": [...]} response."""
 
     endpoint = config.get("ai_endpoint", "").strip()
@@ -114,6 +114,8 @@ def ai_suggest_keep(items, config):
     api_key = config.get("ai_api_key", "").strip()
 
     if not endpoint or not model:
+        if verbose:
+            print(f"[verbose] AI skipped: endpoint={endpoint!r}, model={model!r}")
         return None
 
     prompt_text = (
@@ -131,11 +133,17 @@ def ai_suggest_keep(items, config):
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    if verbose:
+        print(f"[verbose] AI request: POST {endpoint} model={model}")
+
     try:
         req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-    except Exception:
+            raw = resp.read().decode()
+            data = json.loads(raw)
+    except Exception as exc:
+        if verbose:
+            print(f"[verbose] AI request failed: {exc}")
         return None
 
     # Try to extract the assistant message content
@@ -148,6 +156,9 @@ def ai_suggest_keep(items, config):
     if not content and isinstance(data, dict):
         content = data.get("content")
 
+    if verbose:
+        print(f"[verbose] AI response content: {content!r}")
+
     if not content:
         return None
 
@@ -157,9 +168,13 @@ def ai_suggest_keep(items, config):
             return [item for item in parsed if item in items]
         if isinstance(parsed, dict) and isinstance(parsed.get("keep"), list):
             return [item for item in parsed["keep"] if item in items]
-    except Exception:
+    except Exception as exc:
+        if verbose:
+            print(f"[verbose] AI response parse failed: {exc}")
         return None
 
+    if verbose:
+        print(f"[verbose] AI response had unexpected structure: {content!r}")
     return None
 
 
@@ -176,7 +191,7 @@ def ensure_interactive_input():
         sys.exit(1)
 
 
-def read_items(config):
+def read_items(config, verbose=False):
     """Unified item intake with stdin and interactive modes plus over-limit handling."""
 
     from_stdin = not sys.stdin.isatty()
@@ -193,7 +208,7 @@ def read_items(config):
             ensure_interactive_input()
         kept = None
         if ai_enabled(config):
-            kept = ai_suggest_keep(items, config)
+            kept = ai_suggest_keep(items, config, verbose=verbose)
             if kept:
                 print("AI suggested keeping:")
                 for item in kept:
@@ -285,14 +300,20 @@ def parse_args(argv=None):
         "--config", metavar="PATH", default=None,
         help="path to config file (default: ~/.config/choose/choose.toml)",
     )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", default=False,
+        help="show debug info (AI requests, config loading, etc.)",
+    )
     return parser.parse_args(argv)
 
 
 def main():
     args = parse_args()
     config = load_config(config_path=args.config)
-    # TODO: Wire config into comparison and output flows.
-    options = read_items(config)
+    verbose = args.verbose
+    if verbose:
+        print(f"[verbose] config: { {k: ('***' if 'key' in k and v else v) for k, v in config.items()} }")
+    options = read_items(config, verbose=verbose)
     preferences = eval_options(options)
     ranked_options = rank_options(options, preferences)
     print_ranked_options(ranked_options)
