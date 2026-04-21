@@ -136,12 +136,15 @@ def ai_suggest_keep(items, config, verbose=False):
     if verbose:
         print(f"[verbose] AI request: POST {endpoint} model={model}")
 
+    print("Asking AI for suggestions...", end="", flush=True)
     try:
         req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode()
             data = json.loads(raw)
+        print(" done.")
     except Exception as exc:
+        print(" failed.")
         if verbose:
             print(f"[verbose] AI request failed: {exc}")
         return None
